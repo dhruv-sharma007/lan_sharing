@@ -1,0 +1,43 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Get Version
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+
+      - name: Build Binaries
+        run: |
+          mkdir -p dist
+          GOOS=windows GOARCH=amd64 go build -ldflags "-X main.Version=${{ env.VERSION }}" -o dist/lanshare-windows-amd64.exe ./cmd/lanshare
+          GOOS=linux GOARCH=amd64 go build -ldflags "-X main.Version=${{ env.VERSION }}" -o dist/lanshare-linux-amd64 ./cmd/lanshare
+          GOOS=darwin GOARCH=amd64 go build -ldflags "-X main.Version=${{ env.VERSION }}" -o dist/lanshare-darwin-amd64 ./cmd/lanshare
+          GOOS=darwin GOARCH=arm64 go build -ldflags "-X main.Version=${{ env.VERSION }}" -o dist/lanshare-darwin-arm64 ./cmd/lanshare
+
+      - name: Generate Checksums
+        working-directory: dist
+        run: sha256sum * > checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*

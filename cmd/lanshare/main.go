@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -10,10 +12,27 @@ import (
 	"lan_sharing/internal/app"
 )
 
+var Version = "dev"
+
 func main() {
+	versionFlag := flag.Bool("version", false, "Print the version and exit")
+	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("LanShare %s\n", Version)
+		os.Exit(0)
+	}
+
+	if err := app.InitLogger(); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+
 	// Setup context that cancels on interrupt signals (Ctrl+C)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	// Start auto-updater background routine
+	app.StartUpdater(ctx, Version)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)

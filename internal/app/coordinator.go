@@ -21,7 +21,7 @@ func New() *App {
 	mdns := discovery.NewMDNSService(pm)
 	
 	return &App{
-		peerManager: pm,
+		peerManager: pm,	
 		discovery:   mdns,
 	}
 }
