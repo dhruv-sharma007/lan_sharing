@@ -5,6 +5,7 @@ import "time"
 // Peer represents a discovered device on the network.
 type Peer struct {
 	ID       string
+	NodeID   uint64
 	Hostname string
 	IP       string
 	Port     int

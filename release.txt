@@ -1,0 +1,5 @@
+For a new Release - 
+    git tag -a v1.1.0 -m "Release 1.1.0"
+    git push origin v1.1.0
+
+whenever push a new version github action autmatically build and upload the release builds in Releases

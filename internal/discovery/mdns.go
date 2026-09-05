@@ -7,6 +7,8 @@ import (
 	"math/rand/v2"
 	"os"
 	"os/user"
+	"strconv"
+	"strings"
 	"time"
 
 	"lan_sharing/internal/peer"
@@ -16,14 +18,16 @@ import (
 
 // MDNSService manages mDNS discovery and broadcasting.
 type MDNSService struct {
-	manager peer.PeerManager
-	server  *zeroconf.Server
+	nodeID      uint64
+	onPeerFound func(peer.Peer)
+	server      *zeroconf.Server
 }
 
 // NewMDNSService creates a new mDNS service.
-func NewMDNSService(manager peer.PeerManager) *MDNSService {
+func NewMDNSService(nodeID uint64, onPeerFound func(peer.Peer)) *MDNSService {
 	return &MDNSService{
-		manager: manager,
+		nodeID:      nodeID,
+		onPeerFound: onPeerFound,
 	}
 }
 
@@ -44,8 +48,9 @@ func (s *MDNSService) Start(ctx context.Context, port int) error {
 
 	instanceName := fmt.Sprintf("%s-%s", hostname, username)
 
-	// Broadcast
-	server, err := zeroconf.Register(instanceName, "_shareapp._tcp", "local.", port, []string{"txtv=1"}, nil)
+	// Broadcast with NodeID
+	txtRecords := []string{"txtv=1", fmt.Sprintf("id=%d", s.nodeID)}
+	server, err := zeroconf.Register(instanceName, "_shareapp._tcp", "local.", port, txtRecords, nil)
 	if err != nil {
 		return fmt.Errorf("failed to register mDNS service: %w", err)
 	}
@@ -65,18 +70,34 @@ func (s *MDNSService) Start(ctx context.Context, port int) error {
 				continue // Skip self
 			}
 
-			// Add to peer manager
 			if len(entry.AddrIPv4) > 0 {
 				ip := entry.AddrIPv4[0].String()
+				
+				// Parse NodeID from TXT records
+				var remoteNodeID uint64
+				for _, txt := range entry.Text {
+					if strings.HasPrefix(txt, "id=") {
+						idStr := strings.TrimPrefix(txt, "id=")
+						if id, err := strconv.ParseUint(idStr, 10, 64); err == nil {
+							remoteNodeID = id
+						}
+					}
+				}
+
 				p := peer.Peer{
 					ID:       entry.Instance,
+					NodeID:   remoteNodeID,
 					Hostname: entry.Instance,
 					IP:       ip,
 					Port:     entry.Port,
 					LastSeen: time.Now(),
 				}
-				s.manager.Add(p)
-				log.Printf("Discovered peer: %s at %s:%d\n", p.Hostname, p.IP, p.Port)
+				
+				log.Printf("Discovered peer: %s (NodeID: %d) at %s:%d\n", p.Hostname, p.NodeID, p.IP, p.Port)
+				
+				if s.onPeerFound != nil {
+					s.onPeerFound(p)
+				}
 			}
 		}
 	}(entries)
