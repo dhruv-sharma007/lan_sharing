@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -18,13 +19,23 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+// peerConn wraps a websocket connection with a mutex for thread-safe writes.
+type peerConn struct {
+	conn *websocket.Conn
+	mu   sync.Mutex
+}
+
 // ConnectionManager handles WebSocket connections between peers.
 type ConnectionManager struct {
 	myNodeID    uint64
 	peerManager peer.PeerManager
-	
+
 	mu    sync.Mutex
-	conns map[string]*websocket.Conn // key: Peer ID
+	conns map[string]*peerConn // key: Peer ID
+
+	msgHandler           func(peerID string, msgData []byte)
+	peerConnectedHandler func(p peer.Peer)
+	mux                  *http.ServeMux
 }
 
 // NewConnectionManager creates a new connection manager.
@@ -32,21 +43,36 @@ func NewConnectionManager(nodeID uint64, pm peer.PeerManager) *ConnectionManager
 	return &ConnectionManager{
 		myNodeID:    nodeID,
 		peerManager: pm,
-		conns:       make(map[string]*websocket.Conn),
+		conns:       make(map[string]*peerConn),
+		mux:         http.NewServeMux(),
 	}
+}
+
+// RegisterMessageHandler registers a callback for incoming WebSocket messages.
+func (cm *ConnectionManager) RegisterMessageHandler(handler func(peerID string, msgData []byte)) {
+	cm.msgHandler = handler
+}
+
+// RegisterPeerConnectedHandler allows registering a callback for when a peer connects.
+func (cm *ConnectionManager) RegisterPeerConnectedHandler(handler func(p peer.Peer)) {
+	cm.peerConnectedHandler = handler
+}
+
+// RegisterHTTPHandler allows other components to register HTTP endpoints on the same server.
+func (cm *ConnectionManager) RegisterHTTPHandler(pattern string, handler http.HandlerFunc) {
+	cm.mux.HandleFunc(pattern, handler)
 }
 
 // StartServer starts the HTTP server for accepting incoming WebSocket connections.
 func (cm *ConnectionManager) StartServer(port int) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/ws", cm.handleIncomingWS)
+	cm.mux.HandleFunc("/ws", cm.handleIncomingWS)
 
 	addr := fmt.Sprintf(":%d", port)
 	log.Printf("WebSocket server listening on %s", addr)
-	
+
 	server := &http.Server{
 		Addr:    addr,
-		Handler: mux,
+		Handler: cm.mux,
 	}
 
 	if err := server.ListenAndServe(); err != nil {
@@ -86,15 +112,19 @@ func (cm *ConnectionManager) ConnectToPeer(p peer.Peer) {
 		return
 	}
 
-	// Send our identity to the peer
-	// For this, we just need a dummy Peer struct representing ourselves, 
-	// but with our ID and Hostname. The other side receives it to know who connected.
-	myIdentity := peer.Peer{
-		ID:       fmt.Sprintf("node-%d", cm.myNodeID), // Or our actual instance ID if we had it
-		NodeID:   cm.myNodeID,
-		Hostname: "me", // We could pass actual hostname here
+	// Attempt to get hostname, fallback to "peer" if it fails
+	myHostname, err := os.Hostname()
+	if err != nil {
+		myHostname = "peer"
 	}
-	
+
+	// Send our identity to the peer
+	myIdentity := peer.Peer{
+		ID:       fmt.Sprintf("node-%d", cm.myNodeID),
+		NodeID:   cm.myNodeID,
+		Hostname: myHostname,
+	}
+
 	if err := conn.WriteJSON(myIdentity); err != nil {
 		log.Printf("Failed to send identity to peer %s: %v", p.Hostname, err)
 		conn.Close()
@@ -109,36 +139,63 @@ func (cm *ConnectionManager) registerConnection(p peer.Peer, conn *websocket.Con
 	cm.mu.Lock()
 	if existing, exists := cm.conns[p.ID]; exists {
 		log.Printf("Closing duplicate connection for %s", p.ID)
-		existing.Close()
+		existing.mu.Lock()
+		existing.conn.Close()
+		existing.mu.Unlock()
 	}
-	cm.conns[p.ID] = conn
+	pc := &peerConn{conn: conn}
+	cm.conns[p.ID] = pc
 	cm.mu.Unlock()
 
 	// Update PeerManager now that connection is established
 	cm.peerManager.Add(p)
 
+	if cm.peerConnectedHandler != nil {
+		cm.peerConnectedHandler(p)
+	}
+
 	// Keep connection alive / read loop
-	go cm.readLoop(p, conn)
+	go cm.readLoop(p, pc)
 }
 
-func (cm *ConnectionManager) readLoop(p peer.Peer, conn *websocket.Conn) {
+func (cm *ConnectionManager) readLoop(p peer.Peer, pc *peerConn) {
 	defer func() {
-		conn.Close()
+		pc.mu.Lock()
+		pc.conn.Close()
+		pc.mu.Unlock()
+
 		cm.mu.Lock()
-		if cm.conns[p.ID] == conn {
+		if cm.conns[p.ID] == pc {
 			delete(cm.conns, p.ID)
 		}
 		cm.mu.Unlock()
-		
+
 		log.Printf("Connection lost with %s", p.Hostname)
 		cm.peerManager.Remove(p.ID)
 	}()
 
 	for {
-		_, _, err := conn.ReadMessage()
+		_, msg, err := pc.conn.ReadMessage()
 		if err != nil {
 			break
 		}
-		// Handle incoming messages later
+		if cm.msgHandler != nil {
+			cm.msgHandler(p.ID, msg)
+		}
 	}
+}
+
+// SendControlMessage safely sends a JSON message to a peer over the WebSocket connection.
+func (cm *ConnectionManager) SendControlMessage(peerID string, msg interface{}) error {
+	cm.mu.Lock()
+	pc, exists := cm.conns[peerID]
+	cm.mu.Unlock()
+
+	if !exists {
+		return fmt.Errorf("no active connection for peer %s", peerID)
+	}
+
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+	return pc.conn.WriteJSON(msg)
 }

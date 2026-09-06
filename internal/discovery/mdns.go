@@ -72,7 +72,7 @@ func (s *MDNSService) Start(ctx context.Context, port int) error {
 
 			if len(entry.AddrIPv4) > 0 {
 				ip := entry.AddrIPv4[0].String()
-				
+
 				// Parse NodeID from TXT records
 				var remoteNodeID uint64
 				for _, txt := range entry.Text {
@@ -92,9 +92,9 @@ func (s *MDNSService) Start(ctx context.Context, port int) error {
 					Port:     entry.Port,
 					LastSeen: time.Now(),
 				}
-				
+
 				log.Printf("Discovered peer: %s (NodeID: %d) at %s:%d\n", p.Hostname, p.NodeID, p.IP, p.Port)
-				
+
 				if s.onPeerFound != nil {
 					s.onPeerFound(p)
 				}

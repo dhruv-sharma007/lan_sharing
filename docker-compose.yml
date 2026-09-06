@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  peer-a:
+    build: .
+    # Map a local folder to the container's ShareRoot so you can drop files in
+    volumes:
+      - ./test-env/peer-a:/app/LanShare
+    networks:
+      - lan-network
+    hostname: peer-a
+
+  peer-b:
+    build: .
+    volumes:
+      - ./test-env/peer-b:/app/LanShare
+    networks:
+      - lan-network
+    hostname: peer-b
+
+  peer-c:
+    build: .
+    volumes:
+      - ./test-env/peer-c:/app/LanShare
+    networks:
+      - lan-network
+    hostname: peer-c
+
+networks:
+  lan-network:
+    driver: bridge

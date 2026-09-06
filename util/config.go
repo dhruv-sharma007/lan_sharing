@@ -9,7 +9,8 @@ import (
 
 // Config represents the application configuration.
 type Config struct {
-	NodeID uint64 `json:"node_id"`
+	NodeID    uint64 `json:"node_id"`
+	ShareRoot string `json:"share_root"`
 }
 
 // LoadConfig loads the configuration from a file or creates one with a new NodeID if it doesn't exist.
@@ -21,6 +22,7 @@ func LoadConfig(path string) (*Config, error) {
 		if os.IsNotExist(err) {
 			// Generate a new ID if config doesn't exist
 			config.NodeID = generateNodeID()
+			config.ShareRoot = "LanShare" // Default shared folder
 			return config, saveConfig(path, config)
 		}
 		return nil, err
@@ -30,9 +32,18 @@ func LoadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
+	changed := false
 	// Just in case it's 0 (invalid/empty JSON)
 	if config.NodeID == 0 {
 		config.NodeID = generateNodeID()
+		changed = true
+	}
+	if config.ShareRoot == "" {
+		config.ShareRoot = "LanShare"
+		changed = true
+	}
+
+	if changed {
 		if err := saveConfig(path, config); err != nil {
 			return nil, err
 		}

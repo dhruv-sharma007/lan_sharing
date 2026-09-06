@@ -8,6 +8,7 @@ import (
 	"lan_sharing/internal/connection"
 	"lan_sharing/internal/discovery"
 	"lan_sharing/internal/peer"
+	"lan_sharing/internal/transfer"
 	"lan_sharing/util"
 )
 
@@ -17,6 +18,7 @@ type App struct {
 	peerManager       peer.PeerManager
 	connectionManager *connection.ConnectionManager
 	discovery         *discovery.MDNSService
+	transferManager   *transfer.Manager
 }
 
 // New creates a new application instance.
@@ -29,6 +31,13 @@ func New() *App {
 	pm := peer.NewManager()
 	cm := connection.NewConnectionManager(cfg.NodeID, pm)
 
+	tm, err := transfer.NewManager(cfg, pm, cm)
+	if err != nil {
+		log.Fatalf("Failed to initialize transfer manager: %v", err)
+	}
+
+	cm.RegisterPeerConnectedHandler(tm.HandlePeerConnected)
+
 	mdns := discovery.NewMDNSService(cfg.NodeID, func(p peer.Peer) {
 		// Connection Logic Rule: Lower ID initiates connection
 		if cfg.NodeID < p.NodeID {
@@ -37,18 +46,24 @@ func New() *App {
 			log.Printf("Peer %s has lower ID (%d < %d), waiting for them to connect.", p.Hostname, p.NodeID, cfg.NodeID)
 		}
 	})
-	
+
 	return &App{
 		config:            cfg,
 		peerManager:       pm,
 		connectionManager: cm,
 		discovery:         mdns,
+		transferManager:   tm,
 	}
 }
 
 // Run starts the application and blocks until context is cancelled.
 func (a *App) Run(ctx context.Context, port int) error {
 	log.Printf("Starting ShareApp on port %d with NodeID %d...", port, a.config.NodeID)
+
+	// Start transfer manager first so watcher is ready
+	if err := a.transferManager.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start transfer manager: %w", err)
+	}
 
 	go a.connectionManager.StartServer(port)
 
@@ -61,7 +76,7 @@ func (a *App) Run(ctx context.Context, port int) error {
 
 	// Block until context is done
 	<-ctx.Done()
-	
+
 	log.Println("Shutting down ShareApp...")
 	return nil
 }

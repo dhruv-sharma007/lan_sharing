@@ -41,7 +41,7 @@ func InitLogger() error {
 	handler := slog.NewTextHandler(rotator, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})
-	
+
 	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
