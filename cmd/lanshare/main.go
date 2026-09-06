@@ -45,7 +45,7 @@ func main() {
 	application := app.New()
 	
 	// Default port for the application (could be made configurable)
-	port := 3498
+	port := 3598
 	
 	if err := application.Run(ctx, port); err != nil {
 		log.Fatalf("Application error: %v", err)

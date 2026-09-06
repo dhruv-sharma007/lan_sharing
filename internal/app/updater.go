@@ -104,23 +104,23 @@ func checkAndUpdate(currentVersion string) {
 	}
 	defer dlResp.Body.Close()
 
+	execPath, err := os.Executable()
+	if err != nil {
+		slog.Error("Failed to get executable path before update", "error", err)
+		return
+	}
+
 	if err := selfupdate.Apply(dlResp.Body, selfupdate.Options{}); err != nil {
 		slog.Error("Update application failed", "error", err)
 		return
 	}
 
 	slog.Info("Update successful, restarting...")
-	Restart()
+	Restart(execPath)
 }
 
 // Restart replaces the current process with the new binary.
-func Restart() {
-	execPath, err := os.Executable()
-	if err != nil {
-		slog.Error("Failed to get executable path for restart", "error", err)
-		return
-	}
-
+func Restart(execPath string) {
 	cmd := exec.Command(execPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
