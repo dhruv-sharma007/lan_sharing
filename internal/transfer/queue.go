@@ -10,13 +10,13 @@ import (
 type TransferRequest struct {
 	FilePath string // Absolute path to the local file
 	RelPath  string // Relative path to preserve structure
-	PeerID   string // Target peer ID
+	PeerID   uint64 // Target peer ID
 }
 
 // Queue manages pending transfers, ensuring only 1 active transfer per peer.
 type Queue struct {
 	mu      sync.Mutex
-	workers map[string]chan TransferRequest
+	workers map[uint64]chan TransferRequest
 	ctx     context.Context
 	process func(ctx context.Context, req TransferRequest)
 }
@@ -24,7 +24,7 @@ type Queue struct {
 // NewQueue creates a new transfer queue.
 func NewQueue(ctx context.Context, processFunc func(ctx context.Context, req TransferRequest)) *Queue {
 	return &Queue{
-		workers: make(map[string]chan TransferRequest),
+		workers: make(map[uint64]chan TransferRequest),
 		ctx:     ctx,
 		process: processFunc,
 	}
@@ -51,7 +51,7 @@ func (q *Queue) Enqueue(req TransferRequest) {
 	}
 }
 
-func (q *Queue) workerLoop(peerID string, ch <-chan TransferRequest) {
+func (q *Queue) workerLoop(peerID uint64, ch <-chan TransferRequest) {
 	log.Printf("Started transfer worker for peer %s", peerID)
 	for {
 		select {

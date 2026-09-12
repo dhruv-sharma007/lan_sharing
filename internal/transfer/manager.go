@@ -19,8 +19,8 @@ import (
 )
 
 type ConnectionManager interface {
-	SendControlMessage(peerID string, msg interface{}) error
-	RegisterMessageHandler(handler func(peerID string, msgData []byte))
+	SendControlMessage(peerID uint64, msg interface{}) error
+	RegisterMessageHandler(handler func(peerID uint64, msgData []byte))
 	RegisterHTTPHandler(pattern string, handler http.HandlerFunc)
 }
 
@@ -87,7 +87,7 @@ func (m *Manager) onFileStable(absPath, relPath, peerName string) {
 	var targetPeer peer.Peer
 	found := false
 	for _, p := range m.peerMan.List() {
-		if fmt.Sprintf("node-%d", p.NodeID) == peerName {
+		if fmt.Sprintf("node-%d", p.ID) == peerName {
 			targetPeer = p
 			found = true
 			break
@@ -106,7 +106,7 @@ func (m *Manager) onFileStable(absPath, relPath, peerName string) {
 	})
 }
 
-func (m *Manager) handleIncomingMessage(peerID string, msgData []byte) {
+func (m *Manager) handleIncomingMessage(peerID uint64, msgData []byte) {
 	var control ControlMessage
 	if err := json.Unmarshal(msgData, &control); err != nil {
 		return
@@ -137,7 +137,7 @@ func (m *Manager) handleIncomingMessage(peerID string, msgData []byte) {
 	}
 }
 
-func (m *Manager) handleOffer(peerID string, offer TransferOffer) {
+func (m *Manager) handleOffer(peerID uint64, offer TransferOffer) {
 	// Verify peer
 	p, exists := m.peerMan.Get(peerID)
 	if !exists {
@@ -276,7 +276,7 @@ func (m *Manager) processTransfer(ctx context.Context, req TransferRequest) {
 
 // HandlePeerConnected creates a directory for the newly connected peer.
 func (m *Manager) HandlePeerConnected(p peer.Peer) {
-	peerName := fmt.Sprintf("node-%d", p.NodeID)
+	peerName := fmt.Sprintf("node-%d", p.ID)
 	peerDir := filepath.Join(m.sendDir, peerName)
 	if err := os.MkdirAll(peerDir, 0755); err != nil {
 		log.Printf("Failed to create peer directory %s: %v", peerDir, err)

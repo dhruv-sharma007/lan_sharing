@@ -40,10 +40,10 @@ func New() *App {
 
 	mdns := discovery.NewMDNSService(cfg.NodeID, func(p peer.Peer) {
 		// Connection Logic Rule: Lower ID initiates connection
-		if cfg.NodeID < p.NodeID {
+		if cfg.NodeID < p.ID {
 			go cm.ConnectToPeer(p)
 		} else {
-			log.Printf("Peer %s has lower ID (%d < %d), waiting for them to connect.", p.Hostname, p.NodeID, cfg.NodeID)
+			log.Printf("Peer %s has lower ID (%d < %d), waiting for them to connect.", p.Hostname, p.ID, cfg.NodeID)
 		}
 	})
 

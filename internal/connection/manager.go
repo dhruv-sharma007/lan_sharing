@@ -31,9 +31,9 @@ type ConnectionManager struct {
 	peerManager peer.PeerManager
 
 	mu    sync.Mutex
-	conns map[string]*peerConn // key: Peer ID
+	conns map[uint64]*peerConn // key: Peer ID
 
-	msgHandler           func(peerID string, msgData []byte)
+	msgHandler           func(peerID uint64, msgData []byte)
 	peerConnectedHandler func(p peer.Peer)
 	mux                  *http.ServeMux
 }
@@ -43,13 +43,13 @@ func NewConnectionManager(nodeID uint64, pm peer.PeerManager) *ConnectionManager
 	return &ConnectionManager{
 		myNodeID:    nodeID,
 		peerManager: pm,
-		conns:       make(map[string]*peerConn),
+		conns:       make(map[uint64]*peerConn),
 		mux:         http.NewServeMux(),
 	}
 }
 
 // RegisterMessageHandler registers a callback for incoming WebSocket messages.
-func (cm *ConnectionManager) RegisterMessageHandler(handler func(peerID string, msgData []byte)) {
+func (cm *ConnectionManager) RegisterMessageHandler(handler func(peerID uint64, msgData []byte)) {
 	cm.msgHandler = handler
 }
 
@@ -120,8 +120,7 @@ func (cm *ConnectionManager) ConnectToPeer(p peer.Peer) {
 
 	// Send our identity to the peer
 	myIdentity := peer.Peer{
-		ID:       fmt.Sprintf("node-%d", cm.myNodeID),
-		NodeID:   cm.myNodeID,
+		ID:       cm.myNodeID,
 		Hostname: myHostname,
 	}
 
@@ -186,7 +185,7 @@ func (cm *ConnectionManager) readLoop(p peer.Peer, pc *peerConn) {
 }
 
 // SendControlMessage safely sends a JSON message to a peer over the WebSocket connection.
-func (cm *ConnectionManager) SendControlMessage(peerID string, msg interface{}) error {
+func (cm *ConnectionManager) SendControlMessage(peerID uint64, msg interface{}) error {
 	cm.mu.Lock()
 	pc, exists := cm.conns[peerID]
 	cm.mu.Unlock()

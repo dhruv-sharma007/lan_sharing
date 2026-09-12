@@ -4,13 +4,13 @@ import "sync"
 
 type manager struct {
 	mu    sync.RWMutex
-	peers map[string]Peer
+	peers map[uint64]Peer
 }
 
 // NewManager creates a new thread-safe PeerManager.
 func NewManager() PeerManager {
 	return &manager{
-		peers: make(map[string]Peer),
+		peers: make(map[uint64]Peer),
 	}
 }
 
@@ -20,13 +20,13 @@ func (m *manager) Add(peer Peer) {
 	m.peers[peer.ID] = peer
 }
 
-func (m *manager) Remove(id string) {
+func (m *manager) Remove(id uint64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	delete(m.peers, id)
 }
 
-func (m *manager) Get(id string) (Peer, bool) {
+func (m *manager) Get(id uint64) (Peer, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	p, ok := m.peers[id]

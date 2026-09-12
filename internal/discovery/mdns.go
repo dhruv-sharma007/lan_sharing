@@ -85,15 +85,14 @@ func (s *MDNSService) Start(ctx context.Context, port int) error {
 				}
 
 				p := peer.Peer{
-					ID:       entry.Instance,
-					NodeID:   remoteNodeID,
+					ID:       remoteNodeID,
 					Hostname: entry.Instance,
 					IP:       ip,
 					Port:     entry.Port,
 					LastSeen: time.Now(),
 				}
 
-				log.Printf("Discovered peer: %s (NodeID: %d) at %s:%d\n", p.Hostname, p.NodeID, p.IP, p.Port)
+				log.Printf("Discovered peer: %s (ID: %d) at %s:%d\n", p.Hostname, p.ID, p.IP, p.Port)
 
 				if s.onPeerFound != nil {
 					s.onPeerFound(p)
