@@ -4,7 +4,7 @@ import "time"
 
 // Peer represents a discovered device on the network.
 type Peer struct {
-	ID       string
+	ID       uint64
 	Hostname string
 	IP       string
 	Port     int
@@ -14,7 +14,7 @@ type Peer struct {
 // PeerManager defines the interface for managing discovered peers.
 type PeerManager interface {
 	Add(peer Peer)
-	Remove(id string)
-	Get(id string) (Peer, bool)
+	Remove(id uint64)
+	Get(id uint64) (Peer, bool)
 	List() []Peer
 }

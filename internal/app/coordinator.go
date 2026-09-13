@@ -5,30 +5,76 @@ import (
 	"fmt"
 	"log"
 
+	"lan_sharing/internal/connection"
 	"lan_sharing/internal/discovery"
 	"lan_sharing/internal/peer"
+	"lan_sharing/internal/transfer"
+	"lan_sharing/util"
 )
 
 // App is the main application coordinator.
 type App struct {
-	peerManager peer.PeerManager
-	discovery   *discovery.MDNSService
+	config            *util.Config
+	peerManager       peer.PeerManager
+	connectionManager *connection.ConnectionManager
+	discovery         *discovery.MDNSService
+	transferManager   *transfer.Manager
 }
 
 // New creates a new application instance.
 func New() *App {
+	cfg, err := util.LoadConfig("config.json")
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
 	pm := peer.NewManager()
-	mdns := discovery.NewMDNSService(pm)
-	
+	cm := connection.NewConnectionManager(cfg.NodeID, pm)
+
+	tm, err := transfer.NewManager(cfg, pm, cm)
+	if err != nil {
+		log.Fatalf("Failed to initialize transfer manager: %v", err)
+	}
+
+	cm.RegisterPeerConnectedHandler(tm.HandlePeerConnected)
+
+	mdns := discovery.NewMDNSService(cfg.NodeID, func(p peer.Peer) {
+		if p.ID == cfg.NodeID {
+			log.Printf("Ignoring self-discovery for node %d", p.ID)
+			return
+		}
+
+		// Keep mDNS address information available if this peer later connects
+		// to us and its WebSocket identity only supplies an ID and hostname.
+		pm.Add(p)
+
+		// Connection Logic Rule: Lower ID initiates connection
+		if cfg.NodeID < p.ID {
+			go cm.ConnectToPeer(p)
+		} else {
+			log.Printf("Peer %s has lower ID (%d < %d), waiting for them to connect.", p.Hostname, p.ID, cfg.NodeID)
+		}
+	})
+
 	return &App{
-		peerManager: pm,	
-		discovery:   mdns,
+		config:            cfg,
+		peerManager:       pm,
+		connectionManager: cm,
+		discovery:         mdns,
+		transferManager:   tm,
 	}
 }
 
 // Run starts the application and blocks until context is cancelled.
 func (a *App) Run(ctx context.Context, port int) error {
-	log.Printf("Starting ShareApp on port %d...", port)
+	log.Printf("Starting ShareApp on port %d with NodeID %d...", port, a.config.NodeID)
+
+	// Start transfer manager first so watcher is ready
+	if err := a.transferManager.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start transfer manager: %w", err)
+	}
+
+	go a.connectionManager.StartServer(port)
 
 	if err := a.discovery.Start(ctx, port); err != nil {
 		return fmt.Errorf("failed to start discovery: %w", err)
@@ -39,7 +85,7 @@ func (a *App) Run(ctx context.Context, port int) error {
 
 	// Block until context is done
 	<-ctx.Done()
-	
+
 	log.Println("Shutting down ShareApp...")
 	return nil
 }

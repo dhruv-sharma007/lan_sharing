@@ -43,7 +43,7 @@ func main() {
 	}()
 
 	application := app.New()
-	
+
 	// Default port for the application (could be made configurable)
 	port := 3598
 	
