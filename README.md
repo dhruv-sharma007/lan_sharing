@@ -52,6 +52,23 @@ On Windows, build `lanshare.exe` and run it from PowerShell. LanShare creates it
 3. On Windows, set the Wi-Fi/Ethernet network profile to **Private**.
 4. Allow LanShare through the firewall. It needs TCP port `3598` for peer connections and file transfers, plus UDP port `5353` for local-network discovery.
 5. Start LanShare on each computer and wait for them to connect.
+6. Create a shortcut to the `LanShare` folder in a convenient place, such as the Desktop, Quick Access, or Finder sidebar. Use this shortcut whenever you want to send or view received files.
+
+### Find the LanShare folder and make a shortcut
+
+The application is installed in the following locations:
+
+| System | Application location | Default LanShare folder |
+| --- | --- | --- |
+| Windows | `%LOCALAPPDATA%\\LanShare\\lanshare.exe` | `%LOCALAPPDATA%\\LanShare\\LanShare` |
+| Linux | `~/.local/bin/lanshare` | `~/LanShare` when started from your home folder |
+| macOS | `~/.local/bin/lanshare` | `~/LanShare` when started from your home folder |
+
+On Windows, press `Win + R`, enter `%LOCALAPPDATA%\\LanShare`, and open the `LanShare` folder inside it. Right-click the folder and choose **Send to → Desktop (create shortcut)**.
+
+On Linux, open `~/LanShare` in your file manager and choose **Create Link** (or drag it to the desktop, depending on your desktop environment). On macOS, open `~/LanShare` in Finder and drag the folder to the Desktop or Finder sidebar while holding `Option` and `Command` to create an alias.
+
+The application binary and the file-sharing folder are different: only the `LanShare` folder needs a shortcut. It contains the `Send` and `Received` folders used every day.
 
 After two computers connect, each computer creates a peer-specific Send folder:
 
