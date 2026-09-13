@@ -10,7 +10,7 @@ import (
 )
 
 // IsDevEnv controls whether logs go to stdout (true) or to a file (false).
-var IsDevEnv bool = true
+var IsDevEnv bool = false
 
 // InitLogger sets up the slog logger with log rotation.
 func InitLogger() error {
