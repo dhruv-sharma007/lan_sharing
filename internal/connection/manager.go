@@ -152,7 +152,7 @@ func (cm *ConnectionManager) registerConnection(p peer.Peer, conn *websocket.Con
 
 	cm.mu.Lock()
 	if existing, exists := cm.conns[p.ID]; exists {
-		log.Printf("Closing duplicate connection for %s", p.ID)
+		log.Printf("Closing duplicate connection for %d", p.ID)
 		existing.mu.Lock()
 		existing.conn.Close()
 		existing.mu.Unlock()
@@ -206,7 +206,7 @@ func (cm *ConnectionManager) SendControlMessage(peerID uint64, msg interface{}) 
 	cm.mu.Unlock()
 
 	if !exists {
-		return fmt.Errorf("no active connection for peer %s", peerID)
+		return fmt.Errorf("no active connection for peer %d", peerID)
 	}
 
 	pc.mu.Lock()

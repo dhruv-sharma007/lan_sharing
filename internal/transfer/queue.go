@@ -45,23 +45,23 @@ func (q *Queue) Enqueue(req TransferRequest) {
 
 	select {
 	case ch <- req:
-		log.Printf("Transfer queued for peer %s: %s", req.PeerID, req.RelPath)
+		log.Printf("Transfer queued for peer %d: %s", req.PeerID, req.RelPath)
 	default:
-		log.Printf("Queue full for peer %s, dropping transfer request for %s", req.PeerID, req.RelPath)
+		log.Printf("Queue full for peer %d, dropping transfer request for %s", req.PeerID, req.RelPath)
 	}
 }
 
 func (q *Queue) workerLoop(peerID uint64, ch <-chan TransferRequest) {
-	log.Printf("Started transfer worker for peer %s", peerID)
+	log.Printf("Started transfer worker for peer %d", peerID)
 	for {
 		select {
 		case <-q.ctx.Done():
-			log.Printf("Stopping transfer worker for peer %s", peerID)
+			log.Printf("Stopping transfer worker for peer %d", peerID)
 			return
 		case req := <-ch:
-			log.Printf("Starting transfer for %s to %s", req.RelPath, req.PeerID)
+			log.Printf("Starting transfer for %s to %d", req.RelPath, req.PeerID)
 			q.process(q.ctx, req)
-			log.Printf("Finished transfer attempt for %s to %s", req.RelPath, req.PeerID)
+			log.Printf("Finished transfer attempt for %s to %d", req.RelPath, req.PeerID)
 		}
 	}
 }

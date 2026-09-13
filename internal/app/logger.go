@@ -3,8 +3,6 @@ package app
 import (
 	"log/slog"
 	"os"
-	"path/filepath"
-	"runtime"
 
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -21,23 +19,8 @@ func InitLogger() error {
 			Level: slog.LevelDebug,
 		})
 	} else {
-		var logDir string
-		switch runtime.GOOS {
-		case "windows":
-			logDir = filepath.Join(os.Getenv("LOCALAPPDATA"), "LanShare", "logs")
-		case "darwin":
-			home, _ := os.UserHomeDir()
-			logDir = filepath.Join(home, "Library", "Logs", "LanShare")
-		default: // linux and others
-			home, _ := os.UserHomeDir()
-			logDir = filepath.Join(home, ".local", "state", "lanshare", "logs")
-		}
-
-		if err := os.MkdirAll(logDir, 0755); err != nil {
-			return err
-		}
-
-		logFile := filepath.Join(logDir, "lanshare.log")
+		// config.json is loaded from the working directory, so keep the log beside it.
+		logFile := "lanshare.log"
 
 		rotator := &lumberjack.Logger{
 			Filename:   logFile,

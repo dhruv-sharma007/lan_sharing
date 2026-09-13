@@ -87,7 +87,7 @@ func (m *Manager) onFileStable(absPath, relPath, peerName string) {
 	var targetPeer peer.Peer
 	found := false
 	for _, p := range m.peerMan.List() {
-		if fmt.Sprintf(p.Hostname,"-%d", p.ID) == peerName {
+		if peerFolderName(p) == peerName {
 			targetPeer = p
 			found = true
 			break
@@ -131,9 +131,9 @@ func (m *Manager) handleIncomingMessage(peerID uint64, msgData []byte) {
 			}
 		}
 	case TypeTransferComplete:
-		log.Printf("Peer %s reported transfer complete", peerID)
+		log.Printf("Peer %d reported transfer complete", peerID)
 	case TypeTransferError:
-		log.Printf("Peer %s reported transfer error", peerID)
+		log.Printf("Peer %d reported transfer error", peerID)
 	}
 }
 
@@ -182,7 +182,7 @@ func (m *Manager) handleOffer(peerID uint64, offer TransferOffer) {
 func (m *Manager) processTransfer(ctx context.Context, req TransferRequest) {
 	p, exists := m.peerMan.Get(req.PeerID)
 	if !exists {
-		log.Printf("Transfer failed: peer %s offline", req.PeerID)
+		log.Printf("Transfer failed: peer %d offline", req.PeerID)
 		return
 	}
 
@@ -276,8 +276,12 @@ func (m *Manager) processTransfer(ctx context.Context, req TransferRequest) {
 
 // HandlePeerConnected creates a directory for the newly connected peer.
 func (m *Manager) HandlePeerConnected(p peer.Peer) {
-	peerName := fmt.Sprintf(p.Hostname,"-%d", p.ID)
+	peerName := peerFolderName(p)
 	peerDir := filepath.Join(m.sendDir, peerName)
+	if err := m.migrateLegacyPeerDirectory(p, peerDir); err != nil {
+		log.Printf("Failed to migrate legacy peer directory for %s: %v", peerName, err)
+	}
+
 	if err := os.MkdirAll(peerDir, 0755); err != nil {
 		log.Printf("Failed to create peer directory %s: %v", peerDir, err)
 	} else {
@@ -288,4 +292,39 @@ func (m *Manager) HandlePeerConnected(p peer.Peer) {
 			}
 		}
 	}
+}
+
+// peerFolderName returns the stable, human-readable Send directory for a peer.
+// The node ID keeps names unique when multiple devices share a hostname.
+func peerFolderName(p peer.Peer) string {
+	return fmt.Sprintf("%s-%d", p.Hostname, p.ID)
+}
+
+// legacyPeerFolderName is the malformed name created before peerFolderName
+// was introduced. It is retained only to migrate existing Send folders.
+func legacyPeerFolderName(p peer.Peer) string {
+	return fmt.Sprintf("%s%%!(EXTRA string=-%%d, uint64=%d)", p.Hostname, p.ID)
+}
+
+func (m *Manager) migrateLegacyPeerDirectory(p peer.Peer, peerDir string) error {
+	legacyDir := filepath.Join(m.sendDir, legacyPeerFolderName(p))
+
+	if _, err := os.Stat(peerDir); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+
+	if _, err := os.Stat(legacyDir); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+
+	if err := os.Rename(legacyDir, peerDir); err != nil {
+		return err
+	}
+
+	log.Printf("Migrated peer directory from %s to %s", legacyDir, peerDir)
+	return nil
 }
