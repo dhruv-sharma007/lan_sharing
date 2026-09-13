@@ -87,7 +87,7 @@ func (m *Manager) onFileStable(absPath, relPath, peerName string) {
 	var targetPeer peer.Peer
 	found := false
 	for _, p := range m.peerMan.List() {
-		if fmt.Sprintf("node-%d", p.ID) == peerName {
+		if fmt.Sprintf(p.Hostname,"-%d", p.ID) == peerName {
 			targetPeer = p
 			found = true
 			break
@@ -276,7 +276,7 @@ func (m *Manager) processTransfer(ctx context.Context, req TransferRequest) {
 
 // HandlePeerConnected creates a directory for the newly connected peer.
 func (m *Manager) HandlePeerConnected(p peer.Peer) {
-	peerName := fmt.Sprintf("node-%d", p.ID)
+	peerName := fmt.Sprintf(p.Hostname,"-%d", p.ID)
 	peerDir := filepath.Join(m.sendDir, peerName)
 	if err := os.MkdirAll(peerDir, 0755); err != nil {
 		log.Printf("Failed to create peer directory %s: %v", peerDir, err)
