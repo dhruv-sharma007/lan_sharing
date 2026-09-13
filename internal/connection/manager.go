@@ -135,6 +135,21 @@ func (cm *ConnectionManager) ConnectToPeer(p peer.Peer) {
 }
 
 func (cm *ConnectionManager) registerConnection(p peer.Peer, conn *websocket.Conn) {
+	// An incoming WebSocket identity only contains the peer ID and hostname.
+	// Preserve the address details previously obtained through mDNS so later
+	// HTTP file transfers still have a valid destination.
+	if discoveredPeer, exists := cm.peerManager.Get(p.ID); exists {
+		if p.IP == "" {
+			p.IP = discoveredPeer.IP
+		}
+		if p.Port == 0 {
+			p.Port = discoveredPeer.Port
+		}
+		if p.LastSeen.IsZero() {
+			p.LastSeen = discoveredPeer.LastSeen
+		}
+	}
+
 	cm.mu.Lock()
 	if existing, exists := cm.conns[p.ID]; exists {
 		log.Printf("Closing duplicate connection for %s", p.ID)

@@ -39,6 +39,15 @@ func New() *App {
 	cm.RegisterPeerConnectedHandler(tm.HandlePeerConnected)
 
 	mdns := discovery.NewMDNSService(cfg.NodeID, func(p peer.Peer) {
+		if p.ID == cfg.NodeID {
+			log.Printf("Ignoring self-discovery for node %d", p.ID)
+			return
+		}
+
+		// Keep mDNS address information available if this peer later connects
+		// to us and its WebSocket identity only supplies an ID and hostname.
+		pm.Add(p)
+
 		// Connection Logic Rule: Lower ID initiates connection
 		if cfg.NodeID < p.ID {
 			go cm.ConnectToPeer(p)
