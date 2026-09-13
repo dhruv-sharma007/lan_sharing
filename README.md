@@ -88,6 +88,7 @@ LanShare/Received/
 Folder structure is preserved. If a file with the same name already exists, LanShare keeps the original and creates a non-conflicting name such as `photo (1).jpg`.
 
 Do not place files directly inside `LanShare/Send/`; they must be inside a specific peer folder.
+Tip: create shortuct of LanShare app to your desired path 
 
 ## Troubleshooting
 
