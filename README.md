@@ -18,7 +18,7 @@ Open PowerShell and run:
 irm https://raw.githubusercontent.com/dhruv-sharma007/lan_sharing/master/scripts/install.ps1 | iex
 ```
 
-The installer downloads the latest Windows release, starts LanShare, and adds it to Windows startup.
+The installer downloads the latest Windows release, starts LanShare, and creates a `LanShare` Scheduled Task that starts it when you sign in and restarts it after failures.
 
 ### Linux
 
@@ -26,13 +26,33 @@ The installer downloads the latest Windows release, starts LanShare, and adds it
 curl -fsSL https://raw.githubusercontent.com/dhruv-sharma007/lan_sharing/master/scripts/install.sh | bash
 ```
 
+Linux requires a systemd-based distribution. The installer creates and enables the `lanshare.service` systemd user service.
+
 ### macOS
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/dhruv-sharma007/lan_sharing/master/scripts/install.sh | bash
 ```
 
-The Linux/macOS installer downloads the matching release binary and configures automatic startup.
+The installer downloads the matching release binary and registers the `com.lanshare.app` LaunchAgent, which starts LanShare when you sign in, keeps it running, and writes logs to `~/Library/Logs/LanShare/`.
+
+## Uninstall LanShare
+
+Run the matching command for your operating system:
+
+### Windows
+
+```powershell
+irm https://raw.githubusercontent.com/dhruv-sharma007/lan_sharing/master/scripts/uninstall.ps1 | iex
+```
+
+### Linux and macOS
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/dhruv-sharma007/lan_sharing/master/scripts/uninstall.sh | bash
+```
+
+The uninstaller stops and unregisters the background task or service, then removes the installed binary. It also cleans up automatic-start entries created by earlier installer versions.
 
 ### Manual run for development or testing
 
