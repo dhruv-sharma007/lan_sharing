@@ -1,8 +1,10 @@
 package connection
 
 import (
+	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"sync"
@@ -36,6 +38,7 @@ type ConnectionManager struct {
 	msgHandler           func(peerID uint64, msgData []byte)
 	peerConnectedHandler func(p peer.Peer)
 	mux                  *http.ServeMux
+	listenPort           int
 }
 
 // NewConnectionManager creates a new connection manager.
@@ -63,21 +66,33 @@ func (cm *ConnectionManager) RegisterHTTPHandler(pattern string, handler http.Ha
 	cm.mux.HandleFunc(pattern, handler)
 }
 
-// StartServer starts the HTTP server for accepting incoming WebSocket connections.
-func (cm *ConnectionManager) StartServer(port int) {
+// StartServer binds the HTTP server before serving requests so startup fails
+// immediately when the requested port is unavailable.
+func (cm *ConnectionManager) StartServer(port int) error {
 	cm.mux.HandleFunc("/ws", cm.handleIncomingWS)
 
 	addr := fmt.Sprintf(":%d", port)
-	log.Printf("WebSocket server listening on %s", addr)
+	listener, err := net.Listen("tcp", addr)
+	if err != nil {
+		return fmt.Errorf("listen on %s: %w", addr, err)
+	}
+
+	cm.listenPort = listener.Addr().(*net.TCPAddr).Port
 
 	server := &http.Server{
 		Addr:    addr,
 		Handler: cm.mux,
 	}
 
-	if err := server.ListenAndServe(); err != nil {
-		log.Printf("WebSocket server error: %v", err)
-	}
+	log.Printf("WebSocket server listening on %s", listener.Addr())
+
+	go func() {
+		if err := server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Printf("WebSocket server error: %v", err)
+		}
+	}()
+
+	return nil
 }
 
 func (cm *ConnectionManager) handleIncomingWS(w http.ResponseWriter, r *http.Request) {
@@ -93,6 +108,15 @@ func (cm *ConnectionManager) handleIncomingWS(w http.ResponseWriter, r *http.Req
 		log.Printf("Failed to read peer identity: %v", err)
 		conn.Close()
 		return
+	}
+
+	remoteIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		log.Printf("Failed to determine remote address for %s: %v", p.Hostname, err)
+	} else {
+		// The peer identity deliberately does not trust a self-reported address.
+		// The TCP connection supplies the address that is actually reachable.
+		p.IP = remoteIP
 	}
 
 	log.Printf("Accepted incoming connection from %s", p.Hostname)
@@ -122,6 +146,7 @@ func (cm *ConnectionManager) ConnectToPeer(p peer.Peer) {
 	myIdentity := peer.Peer{
 		ID:       cm.myNodeID,
 		Hostname: myHostname,
+		Port:     cm.listenPort,
 	}
 
 	if err := conn.WriteJSON(myIdentity); err != nil {
@@ -135,9 +160,9 @@ func (cm *ConnectionManager) ConnectToPeer(p peer.Peer) {
 }
 
 func (cm *ConnectionManager) registerConnection(p peer.Peer, conn *websocket.Conn) {
-	// An incoming WebSocket identity only contains the peer ID and hostname.
-	// Preserve the address details previously obtained through mDNS so later
-	// HTTP file transfers still have a valid destination.
+	// Preserve mDNS metadata when an older peer does not provide it. Newer
+	// peers provide their listening port in the WebSocket identity, while the
+	// remote IP is obtained from the accepted TCP connection.
 	if discoveredPeer, exists := cm.peerManager.Get(p.ID); exists {
 		if p.IP == "" {
 			p.IP = discoveredPeer.IP

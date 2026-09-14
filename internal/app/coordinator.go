@@ -74,7 +74,9 @@ func (a *App) Run(ctx context.Context, port int) error {
 		return fmt.Errorf("failed to start transfer manager: %w", err)
 	}
 
-	go a.connectionManager.StartServer(port)
+	if err := a.connectionManager.StartServer(port); err != nil {
+		return fmt.Errorf("failed to start WebSocket server: %w", err)
+	}
 
 	if err := a.discovery.Start(ctx, port); err != nil {
 		return fmt.Errorf("failed to start discovery: %w", err)
